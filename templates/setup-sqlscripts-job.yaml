@@ -1,0 +1,92 @@
+---
+apiVersion: v1
+kind: ConfigMap
+data:
+  my-file.sql: |-
+    {{- include "config-sqlscript" . | indent 4 }}
+  env.env: |-
+    {{- include "config-nominatim-env" . | indent 4 }}
+metadata:
+  name: postgressetup
+  labels:
+    app: postgres-setup
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-setup
+  labels:
+    app: postgres-setup
+spec:
+  backoffLimit: 50
+  completions: 1
+  parallelism: 1
+  template:
+    metadata:
+      name: postgres-setup-job
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: default
+      containers:
+      - env:
+        - name: SQLSCRIPT
+          value: /opt/scripts/my-file.sql
+        - name: PGUSER
+          value: postgres
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgres-user-password
+              name: postgres-secret
+        - name: PGDATABASE
+          valueFrom:
+            secretKeyRef:
+              key: database-name
+              name: postgres-secret
+        - name: PGHOST
+          value: postgres-service
+        - name: PGPORT
+          value: "5432"
+        name: run-sqlscript
+        image: quay.io/ajarrett/nodejs-runsqlscript:latest
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - mountPath: /opt/scripts
+          name: sql-script
+      volumes:
+      - name: sql-script
+        configMap:
+          name: postgressetup
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nominatim-dataload
+  labels:
+    app: nominatim-dataload
+spec:
+  backoffLimit: 50
+  completions: 1
+  parallelism: 1
+  template:
+    metadata:
+      name: nominatim-dataload-job
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: default
+      containers:
+      - name: run-dataload
+        image: quay.io/ajarrett/nominatim-postgresql:latest
+        command: ["sh", "-c", "cp /opt/scripts/env.env /tmp/store/.env && pushd /tmp/store && wget -q  https://download.geofabrik.de/europe/monaco-latest.osm.pbf -O monaco-latest.osm.pbf && nominatim import --osm-file monaco-latest.osm.pbf && popd"]
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - mountPath: /tmp/store
+          name: some-store
+        - mountPath: /opt/scripts
+          name: sql-script
+      volumes:
+      - name: sql-script
+        configMap:
+          name: postgressetup
+      - name: some-store
+        emptyDir: {}
