@@ -2,8 +2,15 @@
 
 Attempts to install a database pod which will consist of:
 
-- https://github.com/welshstew/nominatim-centos8-s2i-postgresql12
-- https://github.com/welshstew/nodejs-runsqlscript
+- https://github.com/nominatim-openshift/nominatim-postgresql
+- https://github.com/nominatim-openshift/nodejs-runsqlscript
+
+NOTE:
+
+Images are configured to build automatically in quay.io: 
+
+- Nominatim / Postgres: https://quay.io/repository/ajarrett/nominatim-postgresql
+- NodeJS Script Runner: https://quay.io/repository/ajarrett/nodejs-runsqlscript
 
 Why?
 
